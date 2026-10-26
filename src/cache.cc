@@ -28,6 +28,7 @@
 #include "chrono.h"
 #include "deadlock.h"
 #include "instruction.h"
+#include "pf_study.h"
 #include "util/algorithm.h"
 #include "util/bits.h"
 #include "util/span.h"
@@ -93,14 +94,14 @@ auto CACHE::operator=(CACHE&& other) -> CACHE&
 }
 
 CACHE::tag_lookup_type::tag_lookup_type(const request_type& req, bool local_pref, bool skip)
-    : address(req.address), v_address(req.v_address), data(req.data), ip(req.ip), instr_id(req.instr_id), pf_metadata(req.pf_metadata), cpu(req.cpu),
+    : address(req.address), v_address(req.v_address), data(req.data), ip(req.ip), pf_ip(req.pf_ip), instr_id(req.instr_id), pf_metadata(req.pf_metadata), cpu(req.cpu),
       type(req.type), prefetch_from_this(local_pref), skip_fill(skip), is_translated(req.is_translated), is_instr(req.is_instr),
       instr_depend_on_me(req.instr_depend_on_me)
 {
 }
 
 CACHE::mshr_type::mshr_type(const tag_lookup_type& req, champsim::chrono::clock::time_point _time_enqueued)
-    : address(req.address), v_address(req.v_address), ip(req.ip), instr_id(req.instr_id), cpu(req.cpu), type(req.type),
+    : address(req.address), v_address(req.v_address), ip(req.ip), pf_ip(req.pf_ip), instr_id(req.instr_id), cpu(req.cpu), type(req.type),
       prefetch_from_this(req.prefetch_from_this), is_instr(req.is_instr), time_enqueued(_time_enqueued), instr_depend_on_me(req.instr_depend_on_me),
       to_return(req.to_return)
 {
@@ -243,6 +244,16 @@ bool CACHE::handle_fill(const mshr_type& fill_mshr)
   impl_replacement_cache_fill(fill_mshr.cpu, get_set_index(fill_mshr.address), way_idx, module_address(fill_mshr), fill_mshr.ip, evicting_address,
                               fill_mshr.type);
 
+  // CS683: track prefetch fills and the lines they evict (no effect on simulation)
+  if (NAME == "LLC" && way != set_end) {
+    pf_study::llc_fill(get_set_index(fill_mshr.address), NUM_WAY, fill_mshr.address.to<uint64_t>() >> LOG2_BLOCK_SIZE, fill_mshr.type == access_type::PREFETCH,
+                       fill_mshr.pf_ip.to<uint64_t>(), way->valid, way->address.to<uint64_t>() >> LOG2_BLOCK_SIZE);
+  }
+  // CS683: a demand that merged into an in-flight prefetch (late prefetch) still consumed it
+  if ((fill_mshr.type == access_type::LOAD || fill_mshr.type == access_type::RFO)
+      && (NAME.find("L1D") != std::string::npos || NAME.find("L2C") != std::string::npos)) {
+    pf_study::upper_demand_hit(fill_mshr.address.to<uint64_t>() >> LOG2_BLOCK_SIZE);
+  }
   if (way != set_end) {
     *way = fill_block(fill_mshr, metadata_thru);
   }
@@ -270,6 +281,18 @@ bool CACHE::try_hit(const tag_lookup_type& handle_pkt)
   const auto hit = (way != set_end);
   const auto useful_prefetch = (hit && way->prefetch && !handle_pkt.prefetch_from_this);
 
+  // CS683: observe demand accesses for the prefetch study (no effect on simulation)
+  if (handle_pkt.type == access_type::LOAD || handle_pkt.type == access_type::RFO) {
+    const uint64_t block = handle_pkt.address.to<uint64_t>() >> LOG2_BLOCK_SIZE;
+    if (NAME == "LLC") {
+      if (hit)
+        pf_study::llc_demand_hit(block);
+      else
+        pf_study::llc_demand_miss(get_set_index(handle_pkt.address), block);
+    } else if (hit && (NAME.find("L1D") != std::string::npos || NAME.find("L2C") != std::string::npos)) {
+      pf_study::upper_demand_hit(block);
+    }
+  }
   if constexpr (champsim::debug_print) {
     fmt::print("[{}] {} instr_id: {} address: {} v_address: {} data: {} set: {} way: {} ({}) type: {} cycle: {}\n", NAME, __func__, handle_pkt.instr_id,
                handle_pkt.address, handle_pkt.v_address, handle_pkt.data, get_set_index(handle_pkt.address), std::distance(set_begin, way),
@@ -277,6 +300,8 @@ bool CACHE::try_hit(const tag_lookup_type& handle_pkt)
   }
 
   auto metadata_thru = handle_pkt.pf_metadata;
+  // CS683: remember which PC triggered any prefetch issued by the prefetcher call below
+  pf_trigger_ip = (handle_pkt.type == access_type::PREFETCH) ? handle_pkt.pf_ip : handle_pkt.ip;
   if (should_activate_prefetcher(handle_pkt) && !module_is_instr(handle_pkt)) { // limiting only to data line hits
     metadata_thru = impl_prefetcher_cache_operate(module_address(handle_pkt), handle_pkt.ip, hit, useful_prefetch, handle_pkt.type, metadata_thru);
   }
@@ -323,6 +348,7 @@ auto CACHE::mshr_and_forward_packet(const tag_lookup_type& handle_pkt) -> std::p
   fwd_pkt.data = handle_pkt.data;
   fwd_pkt.instr_id = handle_pkt.instr_id;
   fwd_pkt.ip = handle_pkt.ip;
+  fwd_pkt.pf_ip = handle_pkt.pf_ip;
   fwd_pkt.is_instr = handle_pkt.is_instr;
 
   fwd_pkt.instr_depend_on_me = handle_pkt.instr_depend_on_me;
@@ -598,6 +624,7 @@ bool CACHE::prefetch_line(champsim::address pf_addr, bool fill_this_level, uint3
   request_type pf_packet;
   pf_packet.type = access_type::PREFETCH;
   pf_packet.pf_metadata = prefetch_metadata;
+  pf_packet.pf_ip = pf_trigger_ip;
   pf_packet.cpu = cpu;
   pf_packet.address = pf_addr;
   pf_packet.v_address = virtual_prefetch ? pf_addr : champsim::address{};
@@ -875,6 +902,8 @@ void CACHE::begin_phase()
     ul->roi_stats = ul_new_roi_stats;
     ul->sim_stats = ul_new_sim_stats;
   }
+  if (NAME == "LLC")
+    pf_study::reset_stats();
 }
 
 void CACHE::end_phase(unsigned finished_cpu)

@@ -67,6 +67,7 @@ class CACHE : public champsim::operable
     champsim::address v_address;
     champsim::address data;
     champsim::address ip;
+    champsim::address pf_ip;
     uint64_t instr_id;
 
     uint32_t pf_metadata;
@@ -95,6 +96,7 @@ public:
     champsim::address address;
     champsim::address v_address;
     champsim::address ip;
+    champsim::address pf_ip;
     uint64_t instr_id;
 
     struct returned_value {
@@ -165,6 +167,7 @@ public:
   channel_type* lower_translate;
 
   uint32_t cpu = 0;
+  champsim::address pf_trigger_ip{}; // CS683: PC of the access currently training the prefetcher
   std::string NAME;
   uint32_t NUM_SET, NUM_WAY, MSHR_SIZE;
   std::size_t PQ_SIZE;

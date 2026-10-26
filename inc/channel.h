@@ -66,6 +66,7 @@ class channel
     champsim::address data{};
     uint64_t instr_id = 0;
     champsim::address ip{};
+    champsim::address pf_ip{}; // CS683: PC that triggered this prefetch
 
     std::vector<uint64_t> instr_depend_on_me{};
   };

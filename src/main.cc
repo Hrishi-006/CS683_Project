@@ -31,6 +31,7 @@
 #include "dpc_api.h"
 #include "environment.h"
 #include "ooo_cpu.h" // for O3_CPU
+#include "pf_study.h"
 #include "phase_info.h"
 #include "stats_printer.h"
 #include "tracereader.h"
@@ -161,6 +162,8 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   for (CACHE& cache : gen_environment.cache_view()) {
     cache.impl_replacement_final_stats();
   }
+
+  pf_study::print_stats(); // CS683
 
   if (json_option->count() > 0) {
     if (json_file_name.empty()) {
