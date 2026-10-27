@@ -1,0 +1,9 @@
+trace,group,ipc_pref,ipc_nopref,speedup,llc_mpki_pref,llc_mpki_nopref,l1d_pf_accuracy,l2_pf_accuracy,llc_miss_coverage,llc_pf_fills_pki,frac_used_llc,frac_used_upper_only,frac_unused,harmful_pki
+llama2.c-stories42M.3.champsimtrace.gz,AI,1.796,0.8381,2.143,2.34,33.99,0.999,0.2,0.931,31.7,0.0,0.998,0.002,0.005
+llama2.c-stories15M.3.champsimtrace.gz,AI,1.82,0.8778,2.073,2.58,31.43,0.998,0.27,0.918,28.9,0.0,0.997,0.003,0.017
+llama2.c-stories110M.1.champsimtrace.gz,AI,1.595,0.8812,1.81,3.89,34.76,0.999,0.269,0.888,30.89,0.0,0.999,0.001,0.001
+llama2.c-llama2_7b.16.champsimtrace.gz,AI,1.595,0.9308,1.714,4.21,35.56,0.997,0.277,0.882,31.35,0.0,1.0,0.0,0.0
+605.mcf_s-472B.champsimtrace.xz,control,0.7287,0.3784,1.926,6.66,26.95,0.8,0.528,0.753,44.81,0.0,0.585,0.415,0.43
+sssp-3.trace.gz,control,0.7497,0.5585,1.342,5.66,10.24,0.35,0.299,0.448,21.02,0.002,0.317,0.681,3.52
+620.omnetpp_s-874B.champsimtrace.xz,control,0.5815,0.5689,1.022,4.63,6.99,0.319,0.349,0.338,12.83,0.0,0.215,0.785,0.349
+pr-3.trace.gz,control,0.08003,0.09174,0.872,35.47,45.29,0.246,0.328,0.217,104.35,0.001,0.186,0.812,18.347
