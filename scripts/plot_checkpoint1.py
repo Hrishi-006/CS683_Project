@@ -1,4 +1,4 @@
-"""Checkpoint 1 plots: reads results/final_checkpoint1.csv, writes PNG + PDF to results/plots/."""
+# makes the checkpoint 1 plots from results/final_checkpoint1.csv
 import csv
 import math
 import os
@@ -11,7 +11,7 @@ from matplotlib.patches import Patch
 from matplotlib.transforms import blended_transform_factory
 
 SURFACE, INK, INK2, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#e4e3df"
-BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"  # categorical slots 1-3
+BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
 GROUP_COLOR = {"AI": BLUE, "control": ORANGE}
 GROUP_NAME = {"AI": "Llama2 (AI)", "control": "Non-AI control"}
 OUT = "results/plots"
@@ -29,7 +29,7 @@ rows = list(csv.DictReader(open("results/final_checkpoint1.csv")))
 groups = ["AI", "control"]
 rows.sort(key=lambda r: (groups.index(r["group"]), -float(r["speedup"])))
 
-# y positions: one block per group with a gap between blocks, read top to bottom
+# y positions, gap between the two groups
 ys, y = [], 0.0
 for i, r in enumerate(rows):
     if i and r["group"] != rows[i - 1]["group"]:
@@ -53,7 +53,7 @@ def new_axes(title, subtitle):
     ax.invert_yaxis()
     fig.suptitle(title, x=0.02, y=0.985, ha="left", fontsize=16, fontweight="bold")
     fig.text(0.02, 0.915, subtitle, ha="left", fontsize=11, color=INK2)
-    # group headers above each block
+    # group labels
     trans = blended_transform_factory(ax.transAxes, ax.transData)
     for g in groups:
         first = next(ys[i] for i, r in enumerate(rows) if r["group"] == g)
@@ -74,7 +74,7 @@ def geomean(values):
 
 os.makedirs(OUT, exist_ok=True)
 
-# 1. Speedup from prefetching
+# 1. speedup
 speedup = [float(r["speedup"]) for r in rows]
 fig, ax = new_axes("Speedup from prefetching", "IPC with Berti (L1D) + Pythia (L2) vs. no prefetching; SRRIP at the LLC; 50M warmup + 200M instructions")
 ax.barh(ys, speedup, height=0.62, color=[GROUP_COLOR[r["group"]] for r in rows], edgecolor=SURFACE, linewidth=2)
@@ -88,7 +88,7 @@ ax.legend(handles=[Patch(color=GROUP_COLOR[g], label=f"{GROUP_NAME[g]}: geomean 
                    for g in groups], loc="lower right", frameon=False, fontsize=11)
 save(fig, "1_speedup")
 
-# 2. Where prefetched LLC lines get used
+# 2. prefetch fate
 used_upper = [100 * float(r["frac_used_upper_only"]) for r in rows]
 used_llc = [100 * float(r["frac_used_llc"]) for r in rows]
 unused = [100 * float(r["frac_unused"]) for r in rows]
@@ -105,7 +105,7 @@ ax.set_xlabel("Share of LLC prefetch fills (%)")
 ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.13), ncol=3, frameon=False, fontsize=11)
 save(fig, "2_prefetch_fate")
 
-# 3. Harmful evictions
+# 3. harmful evictions
 harmful = [float(r["harmful_pki"]) for r in rows]
 fig, ax = new_axes("Harmful evictions caused by prefetching",
                    "Lines evicted by a prefetch fill and demanded again before 12 more evictions in that set, per 1000 instructions")
