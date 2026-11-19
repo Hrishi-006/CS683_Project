@@ -154,6 +154,10 @@ private:
   template <typename T>
   bool module_is_instr(const T& element) const;
 
+  // CS683: PC given to the replacement policy (the triggering PC for prefetches)
+  template <typename T>
+  static champsim::address replacement_ip(const T& element);
+
   auto matches_address(champsim::address address) const;
   std::pair<mshr_type, request_type> mshr_and_forward_packet(const tag_lookup_type& handle_pkt);
 

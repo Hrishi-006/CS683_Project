@@ -175,6 +175,14 @@ bool CACHE::module_is_instr(const T& element) const
   return element.is_instr;
 }
 
+// CS683: a prefetch packet's ip is never set (it is 0), so the replacement policy gets the PC
+// that triggered the prefetch instead. Demand accesses keep their own PC.
+template <typename T>
+champsim::address CACHE::replacement_ip(const T& element)
+{
+  return (element.type == access_type::PREFETCH) ? element.pf_ip : element.ip;
+}
+
 bool CACHE::handle_fill(const mshr_type& fill_mshr)
 {
   cpu = fill_mshr.cpu;
@@ -183,8 +191,8 @@ bool CACHE::handle_fill(const mshr_type& fill_mshr)
   auto [set_begin, set_end] = get_set_span(fill_mshr.address);
   auto way = std::find_if_not(set_begin, set_end, [](auto x) { return x.valid; });
   if (way == set_end) {
-    way = std::next(set_begin, impl_find_victim(fill_mshr.cpu, fill_mshr.instr_id, get_set_index(fill_mshr.address), &*set_begin, fill_mshr.ip,
-                                                fill_mshr.address, fill_mshr.type));
+    way = std::next(set_begin, impl_find_victim(fill_mshr.cpu, fill_mshr.instr_id, get_set_index(fill_mshr.address), &*set_begin,
+                                                replacement_ip(fill_mshr), fill_mshr.address, fill_mshr.type));
   }
   assert(set_begin <= way);
   assert(way <= set_end);
@@ -241,8 +249,8 @@ bool CACHE::handle_fill(const mshr_type& fill_mshr)
     metadata_thru = impl_prefetcher_cache_fill(module_address(fill_mshr), get_set_index(fill_mshr.address), way_idx, (fill_mshr.type == access_type::PREFETCH),
                                                evicting_address, fill_mshr.data_promise->pf_metadata);
   }
-  impl_replacement_cache_fill(fill_mshr.cpu, get_set_index(fill_mshr.address), way_idx, module_address(fill_mshr), fill_mshr.ip, evicting_address,
-                              fill_mshr.type);
+  impl_replacement_cache_fill(fill_mshr.cpu, get_set_index(fill_mshr.address), way_idx, module_address(fill_mshr), replacement_ip(fill_mshr),
+                              evicting_address, fill_mshr.type);
 
   // CS683: track prefetch fills and the lines they evict (no effect on simulation)
   if (NAME == "LLC" && way != set_end) {
@@ -308,8 +316,8 @@ bool CACHE::try_hit(const tag_lookup_type& handle_pkt)
 
   // update replacement policy
   const auto way_idx = std::distance(set_begin, way);
-  impl_update_replacement_state(handle_pkt.cpu, get_set_index(handle_pkt.address), way_idx, module_address(handle_pkt), handle_pkt.ip, {}, handle_pkt.type,
-                                hit);
+  impl_update_replacement_state(handle_pkt.cpu, get_set_index(handle_pkt.address), way_idx, module_address(handle_pkt), replacement_ip(handle_pkt), {},
+                                handle_pkt.type, hit);
 
   if (hit) {
     sim_stats.hits.increment(std::pair{handle_pkt.type, handle_pkt.cpu});
