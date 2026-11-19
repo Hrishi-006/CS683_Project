@@ -1,8 +1,10 @@
 #!/bin/bash
-# usage: scripts/run_final.sh [jobs]
-# final traces, with and without prefetching (50M warmup, 200M sim)
+# usage: [CFGS="srrip srrip_nopref"] scripts/run_final.sh [jobs]
+# final traces, one run per config in CFGS (50M warmup, 200M sim)
+# e.g. CFGS="pacman" scripts/run_final.sh 4   (needs bin/1C.fullBW.pacman)
 export W=50000000 S=200000000 OUT=results/raw/final
 J=${1:-6}
+CFGS=${CFGS:-"srrip srrip_nopref"}
 mkdir -p "$OUT"
 
 run_one() {
@@ -16,5 +18,5 @@ export -f run_one
 
 # slowest traces are listed first so they start first
 while read -r t; do
-  for cfg in srrip srrip_nopref; do echo "$cfg traces/$t"; done
+  for cfg in $CFGS; do echo "$cfg traces/$t"; done
 done < scripts/final_traces.txt | xargs -P "$J" -n 2 bash -c 'run_one "$@"' _
