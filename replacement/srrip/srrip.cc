@@ -20,11 +20,21 @@ long srrip::find_victim(uint32_t triggering_cpu, uint64_t instr_id, long set, co
   return sets.at(static_cast<std::size_t>(set)).victim();
 }
 
-// called on every cache hit and cache fill
+// CS683: called on every tag check. Misses are ignored here (way is not valid on a miss);
+// the insertion of the new line happens in replacement_cache_fill.
 void srrip::update_replacement_state(uint32_t triggering_cpu, long set, long way, champsim::address full_addr, champsim::address ip,
                                      champsim::address victim_addr, access_type type, uint8_t hit)
 {
-  sets.at(static_cast<std::size_t>(set)).update(way, hit);
+  if (hit)
+    sets.at(static_cast<std::size_t>(set)).update(way, true);
+}
+
+// CS683: called on every fill. Without this hook the simulator never reports fills to SRRIP
+// (CACHE::impl_update_replacement_state drops them), so new lines never got their insertion RRPV.
+void srrip::replacement_cache_fill(uint32_t triggering_cpu, long set, long way, champsim::address full_addr, champsim::address ip,
+                                   champsim::address victim_addr, access_type type)
+{
+  sets.at(static_cast<std::size_t>(set)).update(way, false);
 }
 
 srrip_set_helper::srrip_set_helper(long ways) : rrpv_values(static_cast<std::size_t>(ways), maxRRPV) {}
